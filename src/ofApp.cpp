@@ -8,52 +8,11 @@ void ofApp::setup()
 {
         ofSetFrameRate(30);
     
+    debug = true; // initialise sketch in debug mode
 
-    //KINECT
-    ofSetLogLevel(OF_LOG_VERBOSE);
-    
-    // enable depth->video image calibration
-    kinect.setRegistration(true);
-    
-    kinect.init();
-    //kinect.init(true); // shows infrared instead of RGB video image
-    //kinect.init(false, false); // disable video image (faster fps)
-    
-    kinect.open();        // opens first available kinect
-    //kinect.open(1);    // open a kinect by id, starting with 0 (sorted by serial # lexicographically))
-    //kinect.open("A00362A08602047A");    // open a kinect using it's unique serial #
-    
-    // print the intrinsic IR sensor values
-    if(kinect.isConnected()) {
-        ofLogNotice() << "sensor-emitter dist: " << kinect.getSensorEmitterDistance() << "cm";
-        ofLogNotice() << "sensor-camera dist:  " << kinect.getSensorCameraDistance() << "cm";
-        ofLogNotice() << "zero plane pixel size: " << kinect.getZeroPlanePixelSize() << "mm";
-        ofLogNotice() << "zero plane dist: " << kinect.getZeroPlaneDistance() << "mm";
-    }
-
-    
-    colorImg.allocate(kinect.width, kinect.height);
-    grayImage.allocate(kinect.width, kinect.height);
-    grayThreshNear.allocate(kinect.width, kinect.height);
-    grayThreshFar.allocate(kinect.width, kinect.height);
-    
-    nearThreshold = 255; //create a slice
-    farThreshold = 251;
-    bThreshWithOpenCV = true;
-        
-    // zero the tilt on startup
-    angle = 0;  //change values when you decide on angle on setup
-    kinect.setCameraTiltAngle(angle);
-    
-    
-    // brightness tracking
-    threshold = 251; // hardcoded
-    
-    
-    //END KINECT
-    //______
+   
     //MORPHING IMAGE
-	ofImage imageOf1, imageOf2;			//Load openFrameworks' images
+		
 	imageOf1.loadImage("hands1.png");
 	imageOf2.loadImage("hands2.png");
 
@@ -140,85 +99,23 @@ void multiplyByScalar( ofxCvFloatImage &floatImage, float value )
 
 //--------------------------------------------------------------
 void ofApp::update(){
-//JUST KINECT
-    kinect.update();
+//Update face detection
+    faceDetection.update(); // Update the face detector
     
-    // there is a new frame and we are connected
-    if(kinect.isFrameNew()) {
+    
+    vector<ofPoint>points = faceDetection.facePosition();
+    for(int i = 0; i<points.size(); i++){
+        closestColorX =  ofMap(points[i].x, 0, 160, 0, ofGetWidth());
+        closestColorY =  ofMap(points[i].y, 0, 120, 0, ofGetHeight());
         
-        // load grayscale depth image from the kinect source
-        grayImage.setFromPixels(kinect.getDepthPixels());
-        
-        count = 0;  // how we do average
-        closestColorX = 0; // resets to zero each loop, then goes and does the averaging
-        closestColorY = 0;
+        // ++closestColorX, closestColorY change these++ add xy positon of blob into location
+                location(closestColorX, closestColorY); // REVISAR ACA ESTA LA JARANA
 
-        for (int y=0; y<grayImage.height; y++) {
-            for (int x=0; x<grayImage.width; x++) {
-
-                // Extract the color components of the pixel at (x,y)
-                // from grayImage (or some other image source)
-                ofColor colorAtXY = grayImage.getPixels().getColor(x, y);
-                float rAtXY = colorAtXY.r;
-                float gAtXY = colorAtXY.g;
-                float bAtXY = colorAtXY.b;
-
-                //if color similar then add coordinates to sum
-                //
-                if( rAtXY > threshold){  // used rAtXY because it's all the same values
-                    closestColorX+= x;
-                    closestColorY+= y;
-                    count++;
-                }
-            }
-        }
-
-        //calculate the average coordinate
-        if (count>0) {
-            closestColorX = closestColorX / count;
-            closestColorY = closestColorY / count;
-         
-            location(closestColorX, closestColorY); // REVISAR ACA ESTA LA JARANA
-        }
-
-   //-------------end of brightness tracking ------------------//
-        
-        // DO NOT CHANGE THIS BLOCK OF CODE
-        // we do two thresholds - one for the far plane and one for the near plane
-        // we then do a cvAnd to get the pixels which are a union of the two thresholds
-        if(bThreshWithOpenCV) {
-            grayThreshNear = grayImage;
-            grayThreshFar = grayImage;
-            grayThreshNear.threshold(nearThreshold, true);
-            grayThreshFar.threshold(farThreshold);
-            cvAnd(grayThreshNear.getCvImage(), grayThreshFar.getCvImage(), grayImage.getCvImage(), NULL);
-        } else {
-            
-            // or we do it ourselves - show people how they can work with the pixels
-            ofPixels & pix = grayImage.getPixels();
-            int numPixels = pix.size();
-            for(int i = 0; i < numPixels; i++) {
-                if(pix[i] < nearThreshold && pix[i] > farThreshold) {
-                    pix[i] = 255;
-                } else {
-                    pix[i] = 0;
-                }
-            }
-        }
-        
-        // update the cv images
-        grayImage.flagImageChanged();
-        
-        
-        //ADD CODE FROM HERE
-        
-        
-        contourFinder.findContours(grayImage, 10, (kinect.width*kinect.height)/2, 20, false);
     }
-    
-#ifdef USE_TWO_KINECTS
-    kinect2.update();
-#endif
+  
+
+
+
 
 }
 
@@ -226,56 +123,29 @@ void ofApp::update(){
 void ofApp::draw(){
 	ofBackground( 255, 255, 255);	//Set the background color
     //KINECT CODE
-
-        grayImage.draw(0, 0, kinect.width, kinect.height); //draw from live kinect
-        contourFinder.draw(0, 0, kinect.width, kinect.height); //Contours images
-        ofSetColor(255, 0, 0);
-        ofDrawCircle(closestColorX, closestColorY, 20); // draw red dot to test, debug
-        
-
+    if (debug){ // debug mode for setting up installation,
+        installationSetup();
+    } else {
+      
     // draw instructions
     ofSetColor(255, 255, 255);
-    stringstream reportStream;
-        
-    if(kinect.hasAccelControl()) {
-        reportStream << "accel is: " << ofToString(kinect.getMksAccel().x, 2) << " / "
-        << ofToString(kinect.getMksAccel().y, 2) << " / "
-        << ofToString(kinect.getMksAccel().z, 2) << endl;
-    } else {
-        reportStream << "Note: this is a newer Xbox Kinect or Kinect For Windows device," << endl
-        << "motor / led / accel controls are not currently supported" << endl << endl;
-    }
-    
-    reportStream << "press p to switch between images and point cloud, rotate the point cloud with the mouse" << endl
-    << "using opencv threshold = " << bThreshWithOpenCV <<" (press spacebar)" << endl
-    << "set near threshold " << nearThreshold << " (press: + -)" << endl
-    << "set far threshold " << farThreshold << " (press: < >) num blobs found " << contourFinder.nBlobs
-    << ", fps: " << ofGetFrameRate() << endl
-    << "press c to close the connection and o to open it again, connection is: " << kinect.isConnected() << endl;
-
-    if(kinect.hasCamTiltControl()) {
-        reportStream << "press UP and DOWN to change the tilt angle: " << angle << " degrees" << endl
-        << "press 1-5 & 0 to change the led mode" << endl;
-    }
-    
-    ofDrawBitmapString(reportStream.str(), 20, 652);
-    
-    
+   
     //___END KINECT
     //MORPH IMAGE CODE
 	int w = gray1.width;
 	int h = gray1.height;
 
-	ofSetColor( 255, 255, 255 );
-
-	//1. Input images + optical flow
-	morph.draw( 0, 0 ); //This draws the final Morphed IMAGE
+        //Input images + optical flow:
+        morph.draw( 0, 0 );         //This draws the final Morphed IMAGE
 
 	//Output text with current morhping value
 	ofSetColor( 0, 0, 0 );
 	ofDrawBitmapString( "Morphing value: " + ofToString( morphValue * 100, 1 ) + "%", morph.getWidth() + 20, ofGetHeight() - 20 ); // prints out the Morphing value
+    
+    ofDrawCircle(closestColorX, closestColorY, 20); // draw red dot to test, debug
 }
 
+}
 
 //--------------------------------------------------------------
 //Making image morphing
@@ -477,16 +347,22 @@ void ofApp::keyPressed(int key){
 void ofApp::location(int x, int y ){
 	morphValue = ofMap(x, 0, ofGetWidth(), 0, 2 ); // Last number will distort more the image, the bigger it is to 1. X now need to be the brightness
     // 10 is an interesting distortion
-    std::cout << "value: " << x << endl;
+    cout << "value: " << x << endl;
     //0 o 60 a 560
 	updateMorph( morphValue, morphImageIndex );
 }
 
 
-//--------------------------------------------------------------
-void ofApp::exit() {
-    kinect.setCameraTiltAngle(0); // zero the tilt on exit
-    kinect.close();
 
+//Set up function click mouse to exit ----------------------------
+void ofApp::installationSetup(){
+    
+    faceDetection.setupInstallation(); //face detect call drawing video
+  //  counter ++;         // Counter for modulo
+}
+
+// Toggle between setup and Installation----------------------------
+void ofApp::mousePressed(int x, int y, int button){
+    debug = !debug;
 }
 
