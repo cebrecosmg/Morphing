@@ -19,6 +19,8 @@ Chapter 9 - Computer Vision with OpenCV
 #include "ofMain.h"
 #include "ofxOpenCv.h"
 #include "ofxKinect.h"
+#include "FaceDetection.hpp"
+
 using namespace cv;
 
 class ofApp : public ofBaseApp{
@@ -27,6 +29,10 @@ public:
 	void setup();
 	void update();
 	void draw();
+    void installationSetup();
+    void mousePressed(int x, int y, int button);
+    
+    ofImage imageOf1, imageOf2;    
 
 
 	ofxCvColorImage color1, color2;		//First and second original images
@@ -61,16 +67,16 @@ public:
     
     
     //KINECT
-    void exit();
-
-    ofxKinect kinect;
-    
-    ofxCvColorImage colorImg;
-    ofxCvGrayscaleImage grayImage; // grayscale depth image
-    ofxCvGrayscaleImage grayThreshNear; // the near thresholded image
-    ofxCvGrayscaleImage grayThreshFar; // the far thresholded image
-    
-    ofxCvContourFinder contourFinder;
+//    void exit();
+//
+//    ofxKinect kinect;
+//    
+//    ofxCvColorImage colorImg;
+//    ofxCvGrayscaleImage grayImage; // grayscale depth image
+//    ofxCvGrayscaleImage grayThreshNear; // the near thresholded image
+//    ofxCvGrayscaleImage grayThreshFar; // the far thresholded image
+//    
+//    ofxCvContourFinder contourFinder;
     
     bool bThreshWithOpenCV;
     //bool bDrawPointCloud;
@@ -83,6 +89,12 @@ public:
     int threshold;
     float closestColorX, closestColorY; //declatering variables for the closest pixel
     int count; // to calculate an averge
+    
+    // face detection
+    FaceDetection faceDetection;
+    
+    // installation / run toggle
+    bool debug;
 
 };
 
